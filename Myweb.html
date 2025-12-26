@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DTZ | ANIME HACKER PORTAL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Bangers&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --neon: #00ffcc; --pink: #ff00ff; --gold: #ffd700; --dark: #050505;
+    }
+    * { box-sizing: border-box; cursor: crosshair; }
+    body, html { margin: 0; padding: 0; height: 100%; font-family: 'Share Tech Mono', monospace; background: #000; color: #fff; overflow: hidden; }
+
+    canvas#bg { position: fixed; top: 0; left: 0; z-index: -1; }
+
+    /* Anime Alert Styling */
+    #alert-box { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+    .anime-alert {
+      background: rgba(255, 0, 255, 0.2); border: 2px solid var(--pink);
+      padding: 15px 25px; margin-bottom: 10px; font-family: 'Bangers', cursive;
+      letter-spacing: 2px; color: #fff; text-shadow: 2px 2px var(--dark);
+      clip-path: polygon(0% 0%, 100% 0%, 95% 100%, 5% 100%);
+      animation: alertPop 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+    }
+    @keyframes alertPop { from { transform: scale(0) rotate(-10deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+
+    /* UI Layout */
+    .view-layer { height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; perspective: 1000px; }
+    
+    .card {
+      background: rgba(0, 10, 10, 0.85); border: 3px solid var(--neon);
+      padding: 40px; width: 90%; max-width: 450px; position: absolute;
+      visibility: hidden; opacity: 0; transform: translateZ(-100px) rotateY(20deg);
+      transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+      box-shadow: 0 0 50px rgba(0, 255, 204, 0.3);
+    }
+    .card.active { visibility: visible; opacity: 1; transform: translateZ(0) rotateY(0); }
+
+    h1 { font-family: 'Bangers', cursive; font-size: 3rem; text-align: center; color: var(--neon); -webkit-text-stroke: 1px var(--dark); margin-bottom: 10px; }
+    h2 { font-family: 'Orbitron'; text-align: center; font-size: 1rem; color: var(--pink); margin-bottom: 20px; }
+
+    input {
+      width: 100%; padding: 12px; margin: 10px 0; background: rgba(255,255,255,0.05);
+      border: 1px solid var(--neon); color: var(--neon); font-size: 16px; outline: none;
+    }
+
+    button {
+      width: 100%; padding: 15px; margin-top: 15px; background: var(--neon);
+      color: #000; font-family: 'Orbitron'; font-weight: 900; border: none;
+      clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+      transition: 0.2s; cursor: pointer;
+    }
+    button:hover { background: var(--pink); color: #fff; transform: scale(1.05); }
+
+    /* Leaderboard Styles */
+    .scroll-box { max-height: 250px; overflow-y: auto; margin-top: 15px; border-top: 1px solid var(--neon); }
+    .list-item { 
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px; border-bottom: 1px solid rgba(0,255,204,0.1); 
+      background: rgba(0,255,204,0.02);
+    }
+
+    /* Admin Floating Controls */
+    .admin-tools { display: flex; gap: 5px; }
+    .btn-sml { padding: 5px 10px; font-size: 10px; clip-path: none; margin: 0; }
+
+    .toolbar { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; }
+    .icon { width: 45px; height: 45px; background: var(--dark); border: 1px solid var(--neon); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--neon); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <canvas id="bg"></canvas>
+  <div id="alert-box"></div>
+
+  <div class="view-layer">
+    <div class="card active" id="pg-home">
+      <h1>DARK TECH ZONE</h1>
+      <h2>ANIME PROTOCOL ACTIVE</h2>
+      <button onclick="nav('pg-auth')">LOGIN / SIGNUP</button>
+      <button onclick="loadGlobalBoard()" style="background:var(--pink); color:#fff">PUBLIC LEADERBOARD</button>
+    </div>
+
+    <div class="card" id="pg-auth">
+      <h1>IDENTIFY</h1>
+      <input type="tel" id="u-phone" placeholder="PHONE NUMBER">
+      <input type="password" id="u-pass" placeholder="SECURITY PASS">
+      <button onclick="handleLogic()">ACCESS CORE</button>
+      <button onclick="nav('pg-home')" style="background:transparent; border:1px solid var(--neon); color:var(--neon)">BACK</button>
+    </div>
+
+    <div class="card" id="pg-reg">
+      <h1>NEW AGENT</h1>
+      <input type="text" id="r-name" placeholder="NICKNAME">
+      <input type="number" id="r-age" placeholder="AGE">
+      <input type="text" id="r-town" placeholder="VILLAGE/TOWN">
+      <button onclick="saveAgent()">REGISTER</button>
+    </div>
+
+    <div class="card" id="pg-dash">
+      <h1 id="disp-name">AGENT</h1>
+      <div style="text-align:center; font-size:24px; color:var(--gold); margin:10px 0;">
+        LEVEL: <span id="disp-pts">0</span>
+      </div>
+      <button onclick="earnPoints()">GAIN POWER (+10)</button>
+      <button onclick="loadGlobalBoard()">LEADERBOARD</button>
+      <button onclick="adminEntry()" style="background:var(--dark); color:var(--neon); border:1px solid var(--neon)">ADMIN MOD</button>
+      <button onclick="location.reload()" style="background:red; color:#fff">LOGOUT</button>
+    </div>
+
+    <div class="card" id="pg-board">
+      <h1 id="board-title">RANKINGS</h1>
+      <div class="scroll-box" id="board-list"></div>
+      <button onclick="nav('pg-home')">RETURN</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <a href="https://wa.me/94778430626" class="icon">WA</a>
+    <div class="icon" onclick="startAudio()" id="audio-toggle">🎵</div>
+  </div>
+
+  <script>
+    // --- FIREBASE CONFIG ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyCy4DRyQXWLo84VooUfiBmHA-GwTrqV0oc",
+      authDomain: "dtz-web.firebaseapp.com",
+      projectId: "dtz-web",
+      storageBucket: "dtz-web.firebasestorage.app",
+      messagingSenderId: "735505362592",
+      appId: "1:735505362592:web:2e9f9e62fcb2791785a3c5"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let currentUser = null;
+    let audioCtx = null;
+    let isAdminMode = false;
+
+    // --- ANIME AUDIO ENGINE ---
+    function startAudio() {
+      if(!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        document.getElementById('audio-toggle').style.borderColor = "var(--pink)";
+      }
+      playPing(880);
+    }
+
+    function playPing(f) {
+      if(!audioCtx) return;
+      let osc = audioCtx.createOscillator();
+      let gain = audioCtx.createGain();
+      osc.frequency.setValueAtTime(f, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+    }
+
+    // --- ALERTS ---
+    function dtzAlert(msg) {
+      const box = document.getElementById('alert-box');
+      const div = document.createElement('div');
+      div.className = 'anime-alert';
+      div.innerText = msg;
+      box.appendChild(div);
+      playPing(440);
+      setTimeout(() => div.remove(), 3000);
+    }
+
+    // --- NAVIGATION ---
+    function nav(id) {
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+      const target = document.getElementById(id);
+      target.classList.add('active');
+      playPing(660);
+    }
+
+    // --- LOGIC ---
+    async function handleLogic() {
+      const ph = document.getElementById('u-phone').value;
+      const ps = document.getElementById('u-pass').value;
+      if(!ph || !ps) return dtzAlert("ENTER CREDENTIALS!");
+
+      const ref = db.collection("dtz_members").doc(ph);
+      const doc = await ref.get();
+
+      if(doc.exists) {
+        if(doc.data().password === ps) {
+          currentUser = doc.data();
+          dtzAlert("WELCOME BACK, AGENT");
+          openDash();
+        } else {
+          dtzAlert("WRONG PASSWORD!");
+        }
+      } else {
+        currentUser = { phone: ph, password: ps, points: 0 };
+        nav('pg-reg');
+      }
+    }
+
+    async function saveAgent() {
+      const n = document.getElementById('r-name').value;
+      const a = document.getElementById('r-age').value;
+      const t = document.getElementById('r-town').value;
+      if(!n || !a || !t) return dtzAlert("DATA MISSING!");
+
+      currentUser = { ...currentUser, name: n, age: a, town: t };
+      await db.collection("dtz_members").doc(currentUser.phone).set(currentUser);
+      dtzAlert("IDENTITY SECURED");
+      openDash();
+    }
+
+    function openDash() {
+      document.getElementById('disp-name').innerText = currentUser.name;
+      document.getElementById('disp-pts').innerText = currentUser.points;
+      nav('pg-dash');
+    }
+
+    async function earnPoints() {
+      currentUser.points += 10;
+      await db.collection("dtz_members").doc(currentUser.phone).update({points: currentUser.points});
+      document.getElementById('disp-pts').innerText = currentUser.points;
+      dtzAlert("POWER UP: +10");
+    }
+
+    // --- LEADERBOARD & ADMIN ---
+    async function loadGlobalBoard(mode = 'user') {
+      isAdminMode = (mode === 'admin');
+      const snap = await db.collection("dtz_members").orderBy("points", "desc").get();
+      const list = document.getElementById('board-list');
+      list.innerHTML = "";
+      
+      snap.forEach(doc => {
+        const u = doc.data();
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        
+        if(isAdminMode) {
+          div.innerHTML = `
+            <span>${u.name} (${u.points})</span>
+            <div class="admin-tools">
+              <button class="btn-sml" onclick="editUser('${u.phone}')">EDIT</button>
+              <button class="btn-sml" style="background:red" onclick="deleteUser('${u.phone}')">X</button>
+            </div>
+          `;
+        } else {
+          div.innerHTML = `<span>${u.name}</span> <b style="color:var(--neon)">${u.points} PTS</b>`;
+        }
+        list.appendChild(div);
+      });
+      nav('pg-board');
+    }
+
+    function adminEntry() {
+      const p = prompt("ENTER MASTER CODE:");
+      if(p === "DTZTEAM") loadGlobalBoard('admin');
+      else dtzAlert("ACCESS DENIED");
+    }
+
+    async function editUser(ph) {
+      const newPts = prompt("Set Points:");
+      const newName = prompt("Set Name:");
+      if(newPts && newName) {
+        await db.collection("dtz_members").doc(ph).update({points: parseInt(newPts), name: newName});
+        loadGlobalBoard('admin');
+      }
+    }
+
+    async function deleteUser(ph) {
+      if(confirm("DELETE AGENT?")) {
+        await db.collection("dtz_members").doc(ph).delete();
+        loadGlobalBoard('admin');
+      }
+    }
+
+    // --- ANIME 3D BACKGROUND ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({canvas: document.getElementById('bg'), antialias: true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    // Speed Lines (Anime Effect)
+    const linesGeo = new THREE.BufferGeometry();
+    const linesPos = [];
+    for(let i=0; i<300; i++) {
+      linesPos.push((Math.random()-0.5)*100, (Math.random()-0.5)*100, (Math.random()-0.5)*500);
+    }
+    linesGeo.setAttribute('position', new THREE.Float32BufferAttribute(linesPos, 3));
+    const linesMat = new THREE.PointsMaterial({color: 0x00ffcc, size: 0.5});
+    const speedLines = new THREE.Points(linesGeo, linesMat);
+    scene.add(speedLines);
+
+    camera.position.z = 50;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      speedLines.position.z += 2;
+      if(speedLines.position.z > 100) speedLines.position.z = 0;
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.onresize = () => {
+      camera.aspect = window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+  </script>
+</body>
+</html>
